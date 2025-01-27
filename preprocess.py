@@ -8,6 +8,11 @@ fineweb_2_processed['source'] = "fineweb_2"
 fineweb_2_processed.to_csv('fineweb_2_processed.tsv', index=False, sep="\t", encoding='utf-8',)
 
 
+hplt_2 = Dataset.to_pandas(load_dataset("HPLT/HPLT2.0_cleaned", name="sin_Sinh", split="train"))
+hplt_2_processed = hplt_2[['text']]
+hplt_2_processed['source'] = "hplt_2"
+hplt_2_processed.to_csv('hplt_2_processed.tsv', index=False, sep="\t", encoding='utf-8',)
+
 
 
 
