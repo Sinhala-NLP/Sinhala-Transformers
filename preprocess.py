@@ -25,11 +25,17 @@ from datasets import load_dataset
 # Nsina_processed['source'] = "Nsina"
 # Nsina_processed.to_csv('Nsina_processed.tsv', index=False, sep="\t", encoding='utf-8')
 
-sinmin = Dataset.to_pandas(load_dataset('sinhala-nlp/sinmin', split='train'))
-sinmin_processed = sinmin[['content']]
-sinmin_processed = sinmin_processed.rename(columns={'content': 'text'})
-sinmin_processed['source'] = "sinmin"
-sinmin_processed.to_csv('sinmin_processed.tsv', index=False, sep="\t", encoding='utf-8')
+# sinmin = Dataset.to_pandas(load_dataset('sinhala-nlp/sinmin', split='train'))
+# sinmin_processed = sinmin[['content']]
+# sinmin_processed = sinmin_processed.rename(columns={'content': 'text'})
+# sinmin_processed['source'] = "sinmin"
+# sinmin_processed.to_csv('sinmin_processed.tsv', index=False, sep="\t", encoding='utf-8')
+
+FacebookDecadeCorpora = Dataset.to_pandas(load_dataset('sinhala-nlp/FacebookDecadeCorpora', split='train'))
+FacebookDecadeCorpora_processed = FacebookDecadeCorpora[['Message']]
+FacebookDecadeCorpora_processed = FacebookDecadeCorpora_processed.rename(columns={'Message': 'text'})
+FacebookDecadeCorpora_processed['source'] = "FacebookDecadeCorpora"
+FacebookDecadeCorpora_processed.to_csv('FacebookDecadeCorpora_processed_processed.tsv', index=False, sep="\t", encoding='utf-8')
 
 
 # hplt = Dataset.to_pandas(load_dataset("HPLT/HPLT2.0_cleaned", name="sin_Sinh", split="train"))
