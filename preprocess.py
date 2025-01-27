@@ -13,7 +13,8 @@ from datasets import load_dataset
 # hplt_2_processed['source'] = "hplt_2"
 # hplt_2_processed.to_csv('hplt_2_processed.tsv', index=False, sep="\t", encoding='utf-8',)
 
-CulturaX = Dataset.to_pandas(load_dataset("uonlp/CulturaX", "si", split="train"))
+CulturaX = Dataset.to_pandas(load_dataset("uonlp/CulturaX", "si", split="train",
+                  use_auth_token=True))
 CulturaX_processed = CulturaX[['text']]
 CulturaX_processed['source'] = "CulturaX"
 CulturaX_processed.to_csv('CulturaX_processed.tsv', index=False, sep="\t", encoding='utf-8',)
