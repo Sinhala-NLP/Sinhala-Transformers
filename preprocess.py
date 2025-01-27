@@ -1,5 +1,6 @@
 from datasets import Dataset
 from datasets import load_dataset
+import pandas as pd
 
 
 # fineweb_2 = Dataset.to_pandas(load_dataset("HuggingFaceFW/fineweb-2", name="sin_Sinh", split="train"))
