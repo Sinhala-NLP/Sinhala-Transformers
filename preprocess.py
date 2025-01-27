@@ -31,11 +31,17 @@ from datasets import load_dataset
 # sinmin_processed['source'] = "sinmin"
 # sinmin_processed.to_csv('sinmin_processed.tsv', index=False, sep="\t", encoding='utf-8')
 
-FacebookDecadeCorpora = Dataset.to_pandas(load_dataset('sinhala-nlp/FacebookDecadeCorpora', split='train'))
-FacebookDecadeCorpora_processed = FacebookDecadeCorpora[['Message']]
-FacebookDecadeCorpora_processed = FacebookDecadeCorpora_processed.rename(columns={'Message': 'text'})
-FacebookDecadeCorpora_processed['source'] = "FacebookDecadeCorpora"
-FacebookDecadeCorpora_processed.to_csv('FacebookDecadeCorpora_processed_processed.tsv', index=False, sep="\t", encoding='utf-8')
+# FacebookDecadeCorpora = Dataset.to_pandas(load_dataset('sinhala-nlp/FacebookDecadeCorpora', split='train'))
+# FacebookDecadeCorpora_processed = FacebookDecadeCorpora[['Message']]
+# FacebookDecadeCorpora_processed = FacebookDecadeCorpora_processed.rename(columns={'Message': 'text'})
+# FacebookDecadeCorpora_processed['source'] = "FacebookDecadeCorpora"
+# FacebookDecadeCorpora_processed.to_csv('FacebookDecadeCorpora_processed_processed.tsv', index=False, sep="\t", encoding='utf-8')
+
+semisold = Dataset.to_pandas(load_dataset("sinhala-nlp/SemiSOLD", split="train"))
+semisold = semisold[semisold['xlmr'] < 0.5]
+semisold_processed = semisold[['text']]
+fineweb_2_processed['source'] = "semisold"
+fineweb_2_processed.to_csv('semisold.tsv', index=False, sep="\t", encoding='utf-8',)
 
 
 # hplt = Dataset.to_pandas(load_dataset("HPLT/HPLT2.0_cleaned", name="sin_Sinh", split="train"))
