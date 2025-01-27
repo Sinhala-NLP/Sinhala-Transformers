@@ -40,8 +40,8 @@ from datasets import load_dataset
 semisold = Dataset.to_pandas(load_dataset("sinhala-nlp/SemiSOLD", split="train"))
 semisold = semisold[semisold['xlmr'] < 0.5]
 semisold_processed = semisold[['text']]
-fineweb_2_processed['source'] = "semisold"
-fineweb_2_processed.to_csv('semisold.tsv', index=False, sep="\t", encoding='utf-8',)
+semisold_processed['source'] = "semisold"
+semisold_processed.to_csv('semisold.tsv', index=False, sep="\t", encoding='utf-8',)
 
 
 # hplt = Dataset.to_pandas(load_dataset("HPLT/HPLT2.0_cleaned", name="sin_Sinh", split="train"))
