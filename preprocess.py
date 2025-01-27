@@ -19,12 +19,17 @@ from datasets import load_dataset
 # CulturaX_processed['source'] = "CulturaX"
 # CulturaX_processed.to_csv('CulturaX_processed.tsv', index=False, sep="\t", encoding='utf-8',)
 
-Nsina = Dataset.to_pandas(load_dataset('sinhala-nlp/NSINA', split='train'))
-Nsina_processed = Nsina[['News Content']]
-Nsina_processed = Nsina_processed.rename(columns={'News Content': 'text'})
-Nsina_processed['source'] = "Nsina"
-Nsina_processed.to_csv('Nsina_processed.tsv', index=False, sep="\t", encoding='utf-8',)
+# Nsina = Dataset.to_pandas(load_dataset('sinhala-nlp/NSINA', split='train'))
+# Nsina_processed = Nsina[['News Content']]
+# Nsina_processed = Nsina_processed.rename(columns={'News Content': 'text'})
+# Nsina_processed['source'] = "Nsina"
+# Nsina_processed.to_csv('Nsina_processed.tsv', index=False, sep="\t", encoding='utf-8')
 
+sinmin = Dataset.to_pandas(load_dataset('sinhala-nlp/sinmin', split='train'))
+sinmin_processed = sinmin[['content']]
+sinmin_processed = sinmin_processed.rename(columns={'content': 'text'})
+sinmin_processed['source'] = "sinmin"
+sinmin_processed.to_csv('sinmin_processed.tsv', index=False, sep="\t", encoding='utf-8')
 
 
 # hplt = Dataset.to_pandas(load_dataset("HPLT/HPLT2.0_cleaned", name="sin_Sinh", split="train"))
