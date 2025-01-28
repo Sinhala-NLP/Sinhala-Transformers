@@ -14,6 +14,9 @@ parser.add_argument('--model_type', required=False, help='model type', default="
 parser.add_argument('--vocab_size', required=False, help='vocab size', default="32000")
 arguments = parser.parse_args()
 
+MODEL_TYPE = arguments.model_type
+VOCAB_SIZE = int(arguments.vocab_size)
+
 # dataset = load_dataset("sinhala-nlp/sinhala-7m-corpus", column_names=['text'])
 dataset = Dataset.to_pandas(load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train'))
 lines = dataset['text'].tolist()
@@ -25,18 +28,17 @@ test_lines = lines[int(len(lines)*.8):len(lines)]
 lines = None
 del lines
 
-with open('train.txt', 'w', encoding='utf-8') as f:
+with open(os.path.join("outputs", MODEL_TYPE,'train.txt'), 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
     for line in train_lines:
         f.write(str(line) + '\n')
 
-with open('test.txt', 'w', encoding='utf-8') as f:
+with open(os.path.join("outputs", MODEL_TYPE,'test.txt'), 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
     for line in test_lines:
         f.write(str(line) + '\n')
 
-MODEL_TYPE = arguments.model_type
-VOCAB_SIZE = int(arguments.vocab_size)
+
 
 model_args = LanguageModelingArgs()
 model_args.reprocess_input_data = True
