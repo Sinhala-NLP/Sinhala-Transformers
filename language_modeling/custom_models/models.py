@@ -59,7 +59,7 @@ from transformers.models.roberta.modeling_roberta import (
     MaskedLMOutput,
 )
 from transformers.models.xlm_roberta.configuration_xlm_roberta import XLMRobertaConfig
-from simpletransformers.custom_models.retrieval_autoencoder import Autoencoder
+from language_modeling.custom_models.retrieval_autoencoder import Autoencoder
 
 
 class BertForMultiLabelSequenceClassification(BertPreTrainedModel):
