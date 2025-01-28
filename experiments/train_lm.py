@@ -1,6 +1,7 @@
 from datasets import load_dataset
 import torch
 import argparse
+from random import shuffle
 
 from language_modeling.model_args import LanguageModelingArgs
 from language_modeling.language_modeling_model import LanguageModelingModel
@@ -8,10 +9,10 @@ from language_modeling.language_modeling_model import LanguageModelingModel
 parser = argparse.ArgumentParser(
     description='''evaluates multiple models  ''')
 parser.add_argument('--model_type', required=False, help='model type', default="bert")
-parser.add_argument('--cache_path', required=False, help='cache directory path', default=None)
+parser.add_argument('--vocab_size', required=False, help='vocab size', default="32000")
 arguments = parser.parse_args()
 
-dataset = load_dataset("sinhala-nlp/HelaTransformer", column_names=['text'])
+dataset = load_dataset("sinhala-nlp/Sinhala-Corpus", column_names=['text'])
 
 with open('output_file.txt', 'w', encoding='utf-8') as txtfile:
 
@@ -22,6 +23,7 @@ with open('output_file.txt', 'w', encoding='utf-8') as txtfile:
 with open('output_file.txt', encoding='utf-8') as f:
     lines = f.read().splitlines()
 
+shuffle(lines)
 train_lines = lines[:int(len(lines)*.8)]
 test_lines = lines[int(len(lines)*.8):len(lines)]
 
@@ -35,6 +37,8 @@ with open('test.txt', 'w', encoding='utf-8') as f:
     for line in test_lines:
         f.write(str(line) + '\n')
 
+MODEL_TYPE = arguments.model_type
+VOCAB_SIZE = int(arguments.vocab_size)
 
 model_args = LanguageModelingArgs()
 model_args.reprocess_input_data = True
@@ -49,14 +53,10 @@ model_args.evaluate_during_training_steps = 30000
 model_args.save_eval_checkpoints = True
 model_args.save_best_model = True
 model_args.save_recent_only = True
-model_args.wandb_project = "LM"
+model_args.wandb_project = "Sinhala Transformers"
 model_args.use_multiprocessing = False
 model_args.use_multiprocessing_for_evaluation = False
-model_args.vocab_size = 30000
-
-
-MODEL_TYPE = arguments.model_type
-
+model_args.vocab_size = VOCAB_SIZE
 
 train_file = "train.txt"
 test_file = "test.txt"
