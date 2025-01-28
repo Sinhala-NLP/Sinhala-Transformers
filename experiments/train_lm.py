@@ -57,6 +57,10 @@ model_args.use_multiprocessing = False
 model_args.use_multiprocessing_for_evaluation = False
 model_args.vocab_size = VOCAB_SIZE
 
+model_args.output_dir = os.path.join("outputs", MODEL_TYPE)
+model_args.best_model_dir = os.path.join("outputs", MODEL_TYPE, "best_model")
+model_args.cache_dir = os.path.join("cache_dir", MODEL_TYPE)
+
 train_file = "train.txt"
 test_file = "test.txt"
 
