@@ -1,4 +1,5 @@
 from datasets import load_dataset
+from pathlib import Path
 from datasets import Dataset
 import torch
 import argparse
@@ -27,6 +28,8 @@ test_lines = lines[int(len(lines)*.8):len(lines)]
 
 lines = None
 del lines
+
+Path(os.path.join("outputs", MODEL_TYPE)).mkdir(parents=True, exist_ok=True)
 
 with open(os.path.join("outputs", MODEL_TYPE,'train.txt'), 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
