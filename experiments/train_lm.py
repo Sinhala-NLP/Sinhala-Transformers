@@ -29,14 +29,14 @@ test_lines = lines[int(len(lines)*.8):len(lines)]
 lines = None
 del lines
 
-Path(os.path.join("outputs", MODEL_TYPE)).mkdir(parents=True, exist_ok=True)
+# Path(os.path.join("outputs", MODEL_TYPE)).mkdir(parents=True, exist_ok=True)
 
-with open(os.path.join("outputs", MODEL_TYPE,'train.txt'), 'w', encoding='utf-8') as f:
+with open('train.txt', 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
     for line in train_lines:
         f.write(str(line) + '\n')
 
-with open(os.path.join("outputs", MODEL_TYPE,'test.txt'), 'w', encoding='utf-8') as f:
+with open('test.txt', 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
     for line in test_lines:
         f.write(str(line) + '\n')
