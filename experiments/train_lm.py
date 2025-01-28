@@ -1,4 +1,5 @@
 from datasets import load_dataset
+from datasets import Dataset
 import torch
 import argparse
 from random import shuffle
@@ -13,21 +14,16 @@ parser.add_argument('--model_type', required=False, help='model type', default="
 parser.add_argument('--vocab_size', required=False, help='vocab size', default="32000")
 arguments = parser.parse_args()
 
-dataset = load_dataset("sinhala-nlp/Sinhala-Corpus", column_names=['text'])
+# dataset = load_dataset("sinhala-nlp/sinhala-7m-corpus", column_names=['text'])
+dataset = Dataset.to_pandas(load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train'))
+lines = dataset['text'].tolist()
 
-with open('output_file.txt', 'w', encoding='utf-8') as txtfile:
-
-    for row in dataset['train'].data.columns[0]:
-        # Convert each row to a string and write to the text file
-        txtfile.write(','.join(str(row)) + '\n')
-
-with open('output_file.txt', encoding='utf-8') as f:
-    lines = f.read().splitlines()
-
-os.remove("output_file.txt")
 shuffle(lines)
 train_lines = lines[:int(len(lines)*.8)]
 test_lines = lines[int(len(lines)*.8):len(lines)]
+
+lines = None
+del lines
 
 with open('train.txt', 'w', encoding='utf-8') as f:
     # write each integer to the file on a new line
