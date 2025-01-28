@@ -2,6 +2,7 @@ from datasets import load_dataset
 import torch
 import argparse
 from random import shuffle
+import os
 
 from language_modeling.model_args import LanguageModelingArgs
 from language_modeling.language_modeling_model import LanguageModelingModel
@@ -23,6 +24,7 @@ with open('output_file.txt', 'w', encoding='utf-8') as txtfile:
 with open('output_file.txt', encoding='utf-8') as f:
     lines = f.read().splitlines()
 
+os.remove("output_file.txt")
 shuffle(lines)
 train_lines = lines[:int(len(lines)*.8)]
 test_lines = lines[int(len(lines)*.8):len(lines)]
