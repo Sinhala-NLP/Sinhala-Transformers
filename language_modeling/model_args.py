@@ -4,6 +4,7 @@ import sys
 from dataclasses import asdict, dataclass, field, fields
 from multiprocessing import cpu_count
 import warnings
+from typing import Union
 
 from torch.utils.data import Dataset
 
@@ -46,7 +47,7 @@ class ModelArgs:
     early_stopping_metric_minimize: bool = True
     early_stopping_patience: int = 3
     encoding: str = None
-    eval_batch_size: int = 8
+    eval_batch_size: int = 100
     evaluate_during_training: bool = False
     evaluate_during_training_silent: bool = True
     evaluate_during_training_steps: int = 2000
@@ -61,7 +62,7 @@ class ModelArgs:
     loss_args: dict = field(default_factory=dict)
     manual_seed: int = None
     max_grad_norm: float = 1.0
-    max_seq_length: int = 512
+    max_seq_length: int = 128
     model_name: str = None
     model_type: str = None
     multiprocessing_chunksize: int = -1
@@ -93,6 +94,7 @@ class ModelArgs:
     tokenizer_type: str = None
     train_batch_size: int = 8
     train_custom_parameters_only: bool = False
+    trust_remote_code: bool = False
     use_cached_eval_features: bool = False
     use_early_stopping: bool = False
     use_hf_datasets: bool = False
@@ -222,6 +224,8 @@ class T5Args(ModelArgs):
     """
 
     model_class: str = "T5Model"
+    add_prefix: bool = True
+    as_reranker: bool = False
     dataset_class: Dataset = None
     do_sample: bool = False
     early_stopping: bool = True
@@ -246,6 +250,36 @@ class T5Args(ModelArgs):
 
 
 @dataclass
+class GenerationArgs:
+    """
+    Args for language generation.
+    """
+
+    max_length: int = 20
+    max_new_tokens: int = None
+    min_length: int = 0
+    min_new_tokens: int = None
+    early_stopping: bool = False
+    max_time: float = None
+
+    do_sample: bool = False
+    num_beams: int = 1
+    num_beam_groups: int = 1
+    penalty_alpha: float = None
+    use_cache: bool = True
+
+    temperature: float = 1.0
+    top_k: int = 50
+    top_p: float = 1.0
+    repetition_penalty: float = 1.0
+    diversity_penalty: float = 0.0
+
+    def get_dict(self):
+        d = asdict(self)
+        return {k: v for k, v in d.items() if v is not None}
+
+
+@dataclass
 class LanguageModelingArgs(ModelArgs):
     """
     Model args for a LanguageModelingModel
@@ -253,9 +287,11 @@ class LanguageModelingArgs(ModelArgs):
 
     model_class: str = "LanguageModelingModel"
     block_size: int = -1
+    chunk_text: bool = True
     config_name: str = None
     dataset_class: Dataset = None
     dataset_type: str = "None"
+    data_format: str = "text"
     discriminator_config: dict = field(default_factory=dict)
     discriminator_loss_weight: float = 50.0
     generator_config: dict = field(default_factory=dict)
@@ -274,6 +310,16 @@ class LanguageModelingArgs(ModelArgs):
     special_tokens_list: list = field(default_factory=list)
     strip_accents: bool = True
     local_rank: int = -1
+    loftq_bits: int = 4
+    loftq_config: dict = field(default_factory=dict)
+    lora_config: dict = field(default_factory=dict)
+    peft: bool = False
+    qlora: bool = False
+    rag: bool = False
+    rag_replace_method: str = "prepend"
+    nf4: bool = False
+    use_autoencoder: bool = False
+    stream_hf_datasets: bool = False
 
     def save(self, output_dir):
         os.makedirs(output_dir, exist_ok=True)
@@ -313,7 +359,8 @@ class Seq2SeqArgs(ModelArgs):
     evaluate_generated_text: bool = False
     faiss_d: int = 768
     faiss_m: int = 128
-    include_title_in_knowledge_dataset: bool = True
+    faiss_index_type: str = "IndexFlatIP"
+    include_title_in_corpus: bool = True
     length_penalty: float = 2.0
     max_length: int = 20
     max_steps: int = -1
@@ -361,20 +408,78 @@ class RetrievalArgs(Seq2SeqArgs):
     """
 
     model_class: str = "RetrievalModel"
+    ance_refresh_n_epochs: int = 1
+    ance_training: bool = False
+    cluster_concatenated: bool = False
+    cluster_every_n_epochs: int = 1
+    cluster_queries: bool = False
+    cluster_train_size: Union[int, float] = None
     context_config: dict = field(default_factory=dict)
+    curriculum_clustering: bool = False
+    data_format: str = "st"
     ddp_training: bool = False
-    embed_batch_size: int = 64
+    disable_datasets_caching: bool = False
+    embed_batch_size: int = 128
+    evaluate_with_beir: bool = False
+    external_embeddings: bool = False
+    extra_cls_token_count: int = 0
+    extra_mask_token_count: int = 0
+    faiss_clustering: bool = True
     faiss_index_type: str = "IndexFlatIP"
+    gradient_caching: bool = False
+    gradient_caching_steps: int = 16
     hard_negatives: bool = False
+    hard_negatives_in_eval: bool = False
+    include_bce_loss: bool = False
+    include_hard_negatives_for_triplets_only: bool = False
+    include_margin_mse_loss: bool = False
+    include_nll_loss: bool = True
     include_title: bool = True
+    include_triplet_loss: bool = False
+    reranking_kl_div_loss: bool = False
+    include_kl_div_loss: bool = False
+    kl_div_lambda: float = 1.0
+    kmeans_k: int = -1
+    larger_representations: bool = False
+    margin_mse_lambda: float = 1
+    mse_loss: bool = False
+    moving_average_loss_count: int = 10
+    multi_vector_query: bool = False
+    query_vector_count: int = 50
+    nll_lambda: float = 1.0
+    nll_lambda_start_decay: int = None
+    nll_lambda_min: float = None
+    n_hard_negatives: int = 1
+    output_dropout: float = 0.1
+    pytrec_eval_metrics: list = field(
+        default_factory=lambda: ["recip_rank", "recall_100", "ndcg_cut_10", "ndcg"]
+    )
     query_config: dict = field(default_factory=dict)
     remove_duplicates_from_eval_passages: bool = False
-    retrieval_batch_size: int = 512
+    relevance_level: int = 1
+    repeat_high_loss_n: int = 0
+    rerank_batch_size: int = 256
+    retrieval_batch_size: int = 2048
     retrieve_n_docs: int = 10
+    save_clustering_idx: bool = False
     save_passage_dataset: bool = True
+    skip_hard_negatives_for_nll: bool = False
+    tas_clustering: bool = False
+    teacher_type: str = "colbert"
+    tie_encoders: bool = False
     train_context_encoder: bool = True
     train_query_encoder: bool = True
+    triplet_lambda: float = 1.0
+    triplet_margin: float = 1.0
+    unified_rr: bool = False
+    unified_cross_rr: bool = False
+    use_autoencoder: bool = False
     use_hf_datasets: bool = True
+    use_pooler_output: bool = False
+    reranking_config: dict = field(default_factory=dict)
+    autoencoder_mse_loss: bool = True
+    autoencoder_kl_div_loss: bool = False
+    mean_pooling: bool = False
 
 
 @dataclass

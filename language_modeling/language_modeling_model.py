@@ -3,13 +3,14 @@
 
 
 from __future__ import absolute_import, division, print_function
+
 import glob
 import json
 import logging
-import shutil
 import math
 import os
 import random
+import shutil
 import warnings
 from dataclasses import asdict
 from multiprocessing import cpu_count
@@ -29,6 +30,8 @@ from tokenizers import BertWordPieceTokenizer, ByteLevelBPETokenizer
 from tokenizers.implementations import (
     SentencePieceBPETokenizer,
     SentencePieceUnigramTokenizer,
+    # BertWordPieceTokenizer,
+    # ByteLevelBPETokenizer,
 )
 from tokenizers.processors import BertProcessing
 from torch.nn.utils.rnn import pad_sequence
@@ -45,13 +48,10 @@ from transformers.optimization import (
 )
 from torch.optim import AdamW
 from transformers.optimization import Adafactor
+from language_modeling.custom_models.models import RobertaWithAutoEncoderForMaskedLM
 
 from transformers import DummyObject, requires_backends
-
-from language_modeling.classification_utils import sweep_config_to_sweep_values, load_hf_dataset
-from language_modeling.model_args import LanguageModelingArgs
-from language_modeling.custom_models.models import ElectraForLanguageModelingModel
-from language_modeling.language_modeling_utils import mask_tokens, SimpleDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class NystromformerTokenizer(metaclass=DummyObject):
@@ -66,6 +66,7 @@ from transformers import (
     AutoConfig,
     AutoModelWithLMHead,
     AutoTokenizer,
+    AutoModelForCausalLM,
     BertConfig,
     BertForMaskedLM,
     BertTokenizer,
@@ -105,26 +106,27 @@ from transformers import (
     XLMRobertaConfig,
     XLMRobertaForMaskedLM,
     XLMRobertaTokenizer,
+    GenerationConfig,
 )
 from transformers.data.datasets.language_modeling import (
     LineByLineTextDataset,
     TextDataset,
 )
 
-# from simpletransformers.config.global_args import global_args
-# from simpletransformers.config.model_args import LanguageModelingArgs
-# from simpletransformers.config.utils import sweep_config_to_sweep_values
-# from simpletransformers.custom_models.models import ElectraForLanguageModelingModel
-# from simpletransformers.language_modeling.language_modeling_utils import (
-#     SimpleDataset,
-#     load_hf_dataset,
-#     mask_tokens,
-# )
+
+from language_modeling.model_args import LanguageModelingArgs, GenerationArgs
+from language_modeling.utils import sweep_config_to_sweep_values
+from language_modeling.custom_models.models import ElectraForLanguageModelingModel
+from language_modeling.language_modeling_utils import (
+    SimpleDataset,
+    apply_chat_template_to_inputs,
+    load_hf_dataset,
+    mask_tokens,
+)
 
 try:
     import wandb
 
-    # wandb.login(key="a869bf0268ec37e2677bc59db0854ab4b6b02e87")
     wandb_available = True
 except ImportError:
     wandb_available = False
@@ -136,6 +138,7 @@ MODEL_CLASSES = {
     "bert": (BertConfig, BertForMaskedLM, BertTokenizer),
     "bigbird": (BigBirdConfig, BigBirdForMaskedLM, BigBirdTokenizer),
     "camembert": (CamembertConfig, CamembertForMaskedLM, CamembertTokenizer),
+    "causal": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "distilbert": (DistilBertConfig, DistilBertForMaskedLM, DistilBertTokenizer),
     "electra": (ElectraConfig, ElectraForLanguageModelingModel, ElectraTokenizer),
     "gpt2": (GPT2Config, GPT2LMHeadModel, GPT2Tokenizer),
@@ -144,6 +147,11 @@ MODEL_CLASSES = {
     "openai-gpt": (OpenAIGPTConfig, OpenAIGPTLMHeadModel, OpenAIGPTTokenizer),
     "rembert": (RemBertConfig, RemBertForMaskedLM, RemBertTokenizer),
     "roberta": (RobertaConfig, RobertaForMaskedLM, RobertaTokenizer),
+    "roberta-autoencoder": (
+        RobertaConfig,
+        RobertaWithAutoEncoderForMaskedLM,
+        RobertaTokenizer,
+    ),
     "xlmroberta": (XLMRobertaConfig, XLMRobertaForMaskedLM, XLMRobertaTokenizer),
 }
 
@@ -158,10 +166,12 @@ class LanguageModelingModel:
         train_files=None,
         args=None,
         use_cuda=True,
+        retrieval_model=None,
+        adapter_name=None,
+        # autoencoder_model=None,
         cuda_device=-1,
         **kwargs,
     ):
-
         """
         Initializes a LanguageModelingModel.
 
@@ -172,6 +182,8 @@ class LanguageModelingModel:
             discriminator_name (optional): A pretrained model name or path to a directory containing an ELECTRA discriminator model.
             args (optional): Default args will be used if this parameter is not provided. If provided, it should be a dict containing the args that should be changed in the default args.
             train_files (optional): List of files to be used when training the tokenizer.
+            rag_corpus (optional): A collection of documents to be used for Retrieval-Augmented Generation. This may
+            retrieval_model (optional): A pretrained model name or path to a directory containing a retrieval model. This should be preloaded with a knowledge index.
             use_cuda (optional): Use GPU if available. Setting to False will force model to use CPU only.
             cuda_device (optional): Specific GPU that should be used. Will use the first available GPU by default.
             **kwargs (optional): For providing proxies, force_download, resume_download, cache_dir and other options specific to the 'from_pretrained' implementation where this will be supplied.
@@ -257,11 +269,17 @@ class LanguageModelingModel:
 
         if self.args.config_name:
             self.config = config_class.from_pretrained(
-                self.args.config_name, cache_dir=self.args.cache_dir
+                self.args.config_name,
+                cache_dir=self.args.cache_dir,
+                trust_remote_code=self.args.trust_remote_code,
+                **kwargs,
             )
         elif self.args.model_name and self.args.model_name != "electra":
             self.config = config_class.from_pretrained(
-                model_name, cache_dir=self.args.cache_dir, **kwargs
+                model_name,
+                cache_dir=self.args.cache_dir,
+                trust_remote_code=self.args.trust_remote_code,
+                **kwargs,
             )
         else:
             self.config = config_class(**self.args.config, **kwargs)
@@ -358,12 +376,64 @@ class LanguageModelingModel:
                         )
                     )
             else:
-                self.model = model_class.from_pretrained(
-                    model_name,
-                    config=self.config,
-                    cache_dir=self.args.cache_dir,
-                    **kwargs,
-                )
+                if self.args.nf4:
+                    from transformers import BitsAndBytesConfig
+
+                    nf4_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_use_double_quant=True,
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                    )
+                    self.model = model_class.from_pretrained(
+                        model_name,
+                        quantization_config=nf4_config,
+                        trust_remote_code=self.args.trust_remote_code,
+                    )
+                else:
+                    self.model = model_class.from_pretrained(
+                        model_name,
+                        config=self.config,
+                        cache_dir=self.args.cache_dir,
+                        **kwargs,
+                    )
+
+            if self.args.peft:
+                from peft import LoraConfig, get_peft_model, LoftQConfig
+                from peft.peft_model import PeftModel
+
+                if self.args.qlora:
+                    if self.args.nf4:
+                        raise ValueError(
+                            "PEFT and QLORA cannot be used together with NF4"
+                        )
+                    loftq_config = LoftQConfig(
+                        loftq_bits=self.args.loftq_bits, **self.args.loftq_config
+                    )
+                    self.lora_config = LoraConfig(
+                        init_lora_weights="loftq",
+                        target_modules="all-linear",
+                        loftq_config=loftq_config,
+                        **self.args.lora_config,
+                    )
+                    self.args.fp16 = False
+                else:
+                    self.lora_config = LoraConfig(
+                        use_rslora=True, target_modules="all-linear"
+                    )
+                self.model.gradient_checkpointing_enable()
+                self.model.enable_input_require_grads()
+                if adapter_name is not None:
+                    self.model = PeftModel.from_pretrained(
+                        self.model,
+                        model_id=adapter_name,
+                        adapter_name=adapter_name,
+                    )
+                    self.adapter_name = adapter_name
+                else:
+                    self.model = get_peft_model(self.model, self.lora_config)
+                    self.model.print_trainable_parameters()
+
         else:
             logger.info(" Training language model from scratch")
             if self.args.model_type == "electra":
@@ -399,6 +469,25 @@ class LanguageModelingModel:
                 )
                 model_to_resize.resize_token_embeddings(len(self.tokenizer))
 
+        # if self.args.use_autoencoder:
+        #     self.autoencoder_model = Autoencoder()
+        #     if autoencoder_model is not None:
+        #         # Load with PyTorch
+        #         self.autoencoder_model.load_state_dict(
+        #             torch.load(os.path.join(autoencoder_model, "pytorch_model.bin"))
+        #         )
+        #     elif model_name:
+        #         # PyTorch model from a PyTorch checkpoint
+        #         self.autoencoder_model.load_state_dict(
+        #             torch.load(
+        #                 os.path.join(
+        #                     model_name, "autoencoder_model", "pytorch_model.bin"
+        #                 )
+        #             )
+        #         )
+        # else:
+        #     self.autoencoder_model = None
+
         if model_type in ["camembert", "xlmroberta"]:
             warnings.warn(
                 f"use_multiprocessing automatically disabled as {model_type}"
@@ -411,6 +500,15 @@ class LanguageModelingModel:
                 "wandb_project specified but wandb is not available. Wandb disabled."
             )
             self.args.wandb_project = None
+
+        if self.args.rag:
+            if retrieval_model:
+                self.retrieval_model = retrieval_model
+            else:
+                raise ValueError(
+                    "RAG is enabled but no retrieval model is specified."
+                    " Pass a retrieval model when instantiating the LanguageModelingModel to use RAG."
+                )
 
     def train_model(
         self,
@@ -477,6 +575,11 @@ class LanguageModelingModel:
             **kwargs,
         )
 
+        if args.save_recent_only:
+            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+            for del_path in del_paths:
+                shutil.rmtree(del_path)
+
         self.save_model(output_dir, model=self.model)
         if self.args.model_type == "electra":
             self.save_discriminator()
@@ -523,15 +626,18 @@ class LanguageModelingModel:
 
         if self.is_world_master():
             tb_writer = SummaryWriter(log_dir=args.tensorboard_dir)
-        train_sampler = (
-            RandomSampler(train_dataset)
-            if args.local_rank == -1
-            else DistributedSampler(train_dataset)
-        )
+        if not self.args.stream_hf_datasets:
+            train_sampler = (
+                RandomSampler(train_dataset)
+                if args.local_rank == -1
+                else DistributedSampler(train_dataset)
+            )
         if self.args.use_hf_datasets:
             # Inputs are already padded so default collation is fine
             train_dataloader = DataLoader(
-                train_dataset, batch_size=args.train_batch_size, sampler=train_sampler
+                train_dataset,
+                batch_size=args.train_batch_size,
+                sampler=train_sampler if not self.args.stream_hf_datasets else None,
             )
         else:
             train_dataloader = DataLoader(
@@ -543,11 +649,14 @@ class LanguageModelingModel:
 
         if args.max_steps > 0:
             t_total = args.max_steps
-            args.num_train_epochs = (
-                args.max_steps
-                // (len(train_dataloader) // args.gradient_accumulation_steps)
-                + 1
-            )
+            try:
+                args.num_train_epochs = (
+                    args.max_steps
+                    // (len(train_dataloader) // args.gradient_accumulation_steps)
+                    + 1
+                )
+            except TypeError:
+                pass
         else:
             t_total = (
                 len(train_dataloader)
@@ -555,63 +664,7 @@ class LanguageModelingModel:
                 * args.num_train_epochs
             )
 
-        no_decay = ["bias", "LayerNorm.weight"]
-
-        optimizer_grouped_parameters = []
-        custom_parameter_names = set()
-        for group in self.args.custom_parameter_groups:
-            params = group.pop("params")
-            custom_parameter_names.update(params)
-            param_group = {**group}
-            param_group["params"] = [
-                p for n, p in model.named_parameters() if n in params
-            ]
-            optimizer_grouped_parameters.append(param_group)
-
-        for group in self.args.custom_layer_parameters:
-            layer_number = group.pop("layer")
-            layer = f"layer.{layer_number}."
-            group_d = {**group}
-            group_nd = {**group}
-            group_nd["weight_decay"] = 0.0
-            params_d = []
-            params_nd = []
-            for n, p in model.named_parameters():
-                if n not in custom_parameter_names and layer in n:
-                    if any(nd in n for nd in no_decay):
-                        params_nd.append(p)
-                    else:
-                        params_d.append(p)
-                    custom_parameter_names.add(n)
-            group_d["params"] = params_d
-            group_nd["params"] = params_nd
-
-            optimizer_grouped_parameters.append(group_d)
-            optimizer_grouped_parameters.append(group_nd)
-
-        if not self.args.train_custom_parameters_only:
-            optimizer_grouped_parameters.extend(
-                [
-                    {
-                        "params": [
-                            p
-                            for n, p in model.named_parameters()
-                            if n not in custom_parameter_names
-                            and not any(nd in n for nd in no_decay)
-                        ],
-                        "weight_decay": args.weight_decay,
-                    },
-                    {
-                        "params": [
-                            p
-                            for n, p in model.named_parameters()
-                            if n not in custom_parameter_names
-                            and any(nd in n for nd in no_decay)
-                        ],
-                        "weight_decay": 0.0,
-                    },
-                ]
-            )
+        optimizer_grouped_parameters = self.get_optimizer_parameters(model, args)
 
         warmup_steps = math.ceil(t_total * args.warmup_ratio)
         args.warmup_steps = (
@@ -637,6 +690,15 @@ class LanguageModelingModel:
                 scale_parameter=args.adafactor_scale_parameter,
                 relative_step=args.adafactor_relative_step,
                 warmup_init=args.adafactor_warmup_init,
+            )
+        elif args.optimizer == "Adam8bit":
+            from bitsandbytes.optim import Adam8bit
+
+            optimizer = Adam8bit(
+                optimizer_grouped_parameters,
+                lr=args.learning_rate,
+                eps=args.adam_epsilon,
+                betas=args.adam_betas,
             )
 
         else:
@@ -787,7 +849,7 @@ class LanguageModelingModel:
             )
             batch_iterator = tqdm(
                 train_dataloader,
-                desc=f"Running Epoch {epoch_number} of {args.num_train_epochs}",
+                desc=f"Running Epoch {epoch_number + 1} of {args.num_train_epochs}",
                 disable=args.silent,
                 mininterval=0,
             )
@@ -796,24 +858,78 @@ class LanguageModelingModel:
                     steps_trained_in_current_epoch -= 1
                     continue
 
+                # TODO: Move this to _get_inputs_dict and keep the attention masks
                 if self.args.use_hf_datasets:
-                    batch = batch["input_ids"]
+                    if self.args.stream_hf_datasets:
+                        batch["input_ids"] = torch.stack(batch["input_ids"])
+                        batch["attention_mask"] = torch.stack(batch["attention_mask"])
+                        if self.args.model_type in [
+                            "roberta",
+                            "roberta-autoencoder",
+                            "xlmroberta",
+                        ]:
+                            # We need a list of zeros the same shape as attention_mask for RoBERTa
+                            batch["token_type_ids"] = [
+                                torch.zeros_like(attention_mask)
+                                for attention_mask in batch["attention_mask"]
+                            ]
+                            batch["token_type_ids"] = torch.stack(
+                                batch["token_type_ids"]
+                            )
+                        else:
+                            batch["token_type_ids"] = torch.stack(
+                                batch["token_type_ids"]
+                            )
+                    input_ids = batch["input_ids"]
+                else:
+                    input_ids = batch
 
                 inputs, labels = (
-                    mask_tokens(batch, tokenizer, args) if args.mlm else (batch, batch)
+                    mask_tokens(input_ids, tokenizer, args)
+                    if args.mlm
+                    else (input_ids, input_ids)
                 )
                 inputs = inputs.to(self.device)
+                attention_mask = (
+                    batch["attention_mask"].to(self.device)
+                    if self.args.use_hf_datasets
+                    else None
+                )
+                token_type_ids = (
+                    batch["token_type_ids"].to(self.device)
+                    if self.args.use_hf_datasets and "token_type_ids" in batch
+                    else None
+                )
                 labels = labels.to(self.device)
+
+                if token_type_ids is None:
+                    inputs_dict = {
+                        "input_ids": inputs,
+                        "attention_mask": attention_mask,
+                    }
+                else:
+                    inputs_dict = {
+                        "input_ids": inputs,
+                        "attention_mask": attention_mask,
+                        "token_type_ids": token_type_ids,
+                    }
 
                 if args.fp16:
                     with amp.autocast():
                         if args.model_type == "longformer":
-                            outputs = model(inputs, attention_mask=None, labels=labels)
+                            outputs = model(inputs, labels=labels)
+                        elif args.model_type == "electra":
+                            outputs = model(
+                                inputs,
+                                labels,
+                                attention_mask=attention_mask,
+                                token_type_ids=token_type_ids,
+                            )
                         else:
                             outputs = (
-                                model(inputs, labels=labels)
+                                model(**inputs_dict, labels=labels)
                                 if args.mlm
-                                else model(inputs, labels=labels)
+                                else model(**inputs_dict, labels=labels)
                             )
                         # model outputs are always tuple in pytorch-transformers (see doc)
                         if args.model_type == "electra":
@@ -824,12 +940,19 @@ class LanguageModelingModel:
                             loss = outputs[0]
                 else:
                     if args.model_type == "longformer":
-                        outputs = model(inputs, attention_mask=None, labels=labels)
+                        outputs = model(**inputs_dict, labels=labels)
+                    elif args.model_type == "electra":
+                        outputs = model(
+                            input_ids,
+                            labels,
+                            attention_mask=attention_mask,
+                            token_type_ids=token_type_ids,
+                        )
                     else:
                         outputs = (
-                            model(inputs, labels=labels)
+                            model(**inputs_dict, labels=labels)
                             if args.mlm
-                            else model(inputs, labels=labels)
+                            else model(**inputs_dict, labels=labels)
                         )
                     # model outputs are always tuple in pytorch-transformers (see doc)
                     if args.model_type == "electra":
@@ -853,7 +976,7 @@ class LanguageModelingModel:
 
                 if show_running_loss:
                     batch_iterator.set_description(
-                        f"Epochs {epoch_number}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
+                        f"Epochs {epoch_number + 1}/{args.num_train_epochs}. Running Loss: {current_loss:9.4f}"
                     )
 
                 if args.gradient_accumulation_steps > 1:
@@ -909,6 +1032,7 @@ class LanguageModelingModel:
                             del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
                             for del_path in del_paths:
                                 shutil.rmtree(del_path)
+
                         # Save model checkpoint
                         output_dir_current = os.path.join(
                             output_dir, "checkpoint-{}".format(global_step)
@@ -938,16 +1062,18 @@ class LanguageModelingModel:
                                     )
                                 except (NotImplementedError, AssertionError):
                                     pass
-                        if args.save_recent_only:
-                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                            for del_path in del_paths:
-                                shutil.rmtree(del_path)
 
                         output_dir_current = os.path.join(
                             output_dir, "checkpoint-{}".format(global_step)
                         )
 
                         if args.save_eval_checkpoints:
+                            if args.save_recent_only:
+                                del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                                for del_path in del_paths:
+                                    shutil.rmtree(del_path)
+
+
                             self.save_model(
                                 output_dir_current,
                                 optimizer,
@@ -973,6 +1099,12 @@ class LanguageModelingModel:
 
                         if not best_eval_metric:
                             best_eval_metric = results[args.early_stopping_metric]
+
+                            if args.save_recent_only:
+                                del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                                for del_path in del_paths:
+                                    shutil.rmtree(del_path)
+
                             self.save_model(
                                 args.best_model_dir,
                                 optimizer,
@@ -986,6 +1118,12 @@ class LanguageModelingModel:
                                 < args.early_stopping_delta
                             ):
                                 best_eval_metric = results[args.early_stopping_metric]
+
+                                if args.save_recent_only:
+                                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                                    for del_path in del_paths:
+                                        shutil.rmtree(del_path)
+
                                 self.save_model(
                                     args.best_model_dir,
                                     optimizer,
@@ -1030,6 +1168,12 @@ class LanguageModelingModel:
                                 > args.early_stopping_delta
                             ):
                                 best_eval_metric = results[args.early_stopping_metric]
+
+                                if args.save_recent_only:
+                                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                                    for del_path in del_paths:
+                                        shutil.rmtree(del_path)
+
                                 self.save_model(
                                     args.best_model_dir,
                                     optimizer,
@@ -1079,19 +1223,21 @@ class LanguageModelingModel:
                     )
 
             epoch_number += 1
-            if args.save_recent_only:
-                del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                for del_path in del_paths:
-                    shutil.rmtree(del_path)
-
             output_dir_current = os.path.join(
-                output_dir, "checkpoint-{}-epoch-{}".format(global_step, epoch_number)
+                output_dir,
+                "checkpoint-{}-epoch-{}".format(global_step, epoch_number),
             )
 
             if args.save_model_every_epoch or args.evaluate_during_training:
                 os.makedirs(output_dir_current, exist_ok=True)
 
             if args.save_model_every_epoch:
+
+                if args.save_recent_only:
+                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                    for del_path in del_paths:
+                        shutil.rmtree(del_path)
+
                 self.save_model(output_dir_current, optimizer, scheduler, model=model)
 
             if args.evaluate_during_training and args.evaluate_each_epoch:
@@ -1101,6 +1247,11 @@ class LanguageModelingModel:
                     silent=args.evaluate_during_training_silent,
                     **kwargs,
                 )
+
+                if args.save_recent_only:
+                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                    for del_path in del_paths:
+                        shutil.rmtree(del_path)
 
                 self.save_model(
                     output_dir_current, optimizer, scheduler, results=results
@@ -1121,6 +1272,12 @@ class LanguageModelingModel:
 
                 if not best_eval_metric:
                     best_eval_metric = results[args.early_stopping_metric]
+
+                    if args.save_recent_only:
+                        del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                        for del_path in del_paths:
+                            shutil.rmtree(del_path)
+
                     self.save_model(
                         args.best_model_dir,
                         optimizer,
@@ -1134,6 +1291,12 @@ class LanguageModelingModel:
                         < args.early_stopping_delta
                     ):
                         best_eval_metric = results[args.early_stopping_metric]
+
+                        if args.save_recent_only:
+                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                            for del_path in del_paths:
+                                shutil.rmtree(del_path)
+
                         self.save_model(
                             args.best_model_dir,
                             optimizer,
@@ -1178,6 +1341,12 @@ class LanguageModelingModel:
                         > args.early_stopping_delta
                     ):
                         best_eval_metric = results[args.early_stopping_metric]
+
+                        if args.save_recent_only:
+                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
+                            for del_path in del_paths:
+                                shutil.rmtree(del_path)
+
                         self.save_model(
                             args.best_model_dir,
                             optimizer,
@@ -1233,7 +1402,13 @@ class LanguageModelingModel:
         )
 
     def eval_model(
-        self, eval_file, output_dir=None, verbose=True, silent=False, **kwargs
+        self,
+        eval_file,
+        output_dir=None,
+        evaluate_generated_text=False,
+        verbose=True,
+        silent=False,
+        **kwargs,
     ):
         """
         Evaluates the model on eval_df. Saves results to args.output_dir
@@ -1245,26 +1420,30 @@ class LanguageModelingModel:
 
         self._move_model_to_device()
 
-        eval_dataset = self.load_and_cache_examples(
-            eval_file, evaluate=True, verbose=verbose, silent=silent
-        )
-        os.makedirs(output_dir, exist_ok=True)
+        if evaluate_generated_text:
+            raise NotImplementedError(
+                "evaluate_generated_text is not yet implemented for this model type."
+            )
+        else:
+            eval_dataset = self.load_and_cache_examples(
+                eval_file, evaluate=True, verbose=verbose, silent=silent
+            )
+            os.makedirs(output_dir, exist_ok=True)
 
-        result = self.evaluate(
-            eval_dataset, output_dir, verbose=verbose, silent=silent, **kwargs
-        )
-        self.results.update(result)
+            result = self.evaluate(
+                eval_dataset, output_dir, verbose=verbose, silent=silent, **kwargs
+            )
+            self.results.update(result)
 
-        if verbose:
-            logger.info(self.results)
+            if verbose:
+                logger.info(self.results)
 
-        return result
+            return result
 
     def evaluate(
         self,
         eval_dataset,
         output_dir,
-        multi_label=False,
         prefix="",
         verbose=True,
         silent=False,
@@ -1315,18 +1494,39 @@ class LanguageModelingModel:
             eval_dataloader, disable=args.silent or silent, desc="Running Evaluation"
         ):
             if self.args.use_hf_datasets:
-                batch = batch["input_ids"]
+                input_ids = batch["input_ids"]
 
             inputs, labels = (
-                mask_tokens(batch, tokenizer, args) if args.mlm else (batch, batch)
+                mask_tokens(batch, tokenizer, args)
+                if args.mlm
+                else (input_ids, input_ids)
             )
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
+
+            if "token_type_ids" in batch:
+                inputs_dict = {
+                    "input_ids": inputs,
+                    "attention_mask": batch["attention_mask"].to(self.device)
+                    if self.args.use_hf_datasets
+                    else None,
+                    "token_type_ids": batch["token_type_ids"].to(self.device)
+                    if self.args.use_hf_datasets
+                    else None,
+                }
+            else:
+                inputs_dict = {
+                    "input_ids": inputs,
+                    "attention_mask": batch["attention_mask"].to(self.device)
+                    if self.args.use_hf_datasets
+                    else None,
+                }
+
             with torch.no_grad():
                 outputs = (
-                    model(inputs, labels=labels)
+                    model(**inputs_dict, labels=labels)
                     if args.mlm
-                    else model(inputs, labels=labels)
+                    else model(**inputs_dict, labels=labels)
                 )
                 if args.model_type == "electra":
                     g_loss = outputs[0]
@@ -1352,6 +1552,136 @@ class LanguageModelingModel:
 
         return results
 
+    def predict(
+        self,
+        to_predict,
+        generation_args=None,
+        rag_queries=None,
+        knowledge_dataset=None,
+        user_role="user",
+        system_role="system",
+        system_prompt="",
+        apply_chat_template=False,
+        **kwargs,
+    ):
+        """
+        Performs text completions on a list of text. To be used with language models.
+
+        Args:
+
+        to_predict: A list of text to make predictions on.
+        generation_args: An instance of the `GenerationArgs` class containing the generation arguments for the model.
+        rag_queries (optional): A list of text to be used as queries for the RAG model. Only applicable if rag is enabled.
+        knowledge_dataset (optional): A list of text to be used as knowledge for the RAG model. Only applicable if the model is a RAG model.
+        **kwargs: Additional arguments to be passed to the models `generate()` method during inference.
+
+        Returns:
+        preds: A list of the predicted sequences.
+        """
+        self._move_model_to_device()
+
+        if not generation_args:
+            generation_args = GenerationArgs()
+
+        if self.args.peft and self.adapter_name:
+            logger.info(
+                "Merging adapter with model for faster inference. Contunuing training from this point may result in unexpected behavior."
+            )
+            self.model = self.model.merge_and_unload()
+
+        self.tokenizer.padding_side = "left"
+
+        if self.args.rag:
+            if not rag_queries:
+                rag_queries = to_predict
+                raise Warning(
+                    "No `rag_queries` provided. Using `to_predict` as `rag_queries`."
+                )
+
+            context_docs = self.retrieval_model.predict(
+                rag_queries,
+                passages_only=True,
+                prediction_passages=knowledge_dataset,
+            )
+
+            to_predict = [
+                f"Context: {' '.join(context_doc)} {text}"
+                for context_doc, text in zip(context_docs, to_predict)
+            ]
+            # TODO:
+            # - Simplest option is to just prepend context: context_docs to to_predict
+            # - Advanced option is to have <CONTEXT_1> ... <CONTEXT_n> in to_predict and then replace <CONTEXT_1> ... <CONTEXT_n> with context_docs
+
+        if apply_chat_template:
+            to_predict = apply_chat_template_to_inputs(
+                to_predict, user_role, system_role, system_prompt, self.tokenizer
+            )
+
+        try:
+            inputs = self.tokenizer(
+                to_predict,
+                padding=True,
+                return_tensors="pt",
+            )
+        except ValueError:
+            if not self.tokenizer.pad_token:
+                warnings.warn(
+                    "The tokenizer you are using does not have a pad_token assigned. Setting to `eos_token`."
+                )
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+            inputs = self.tokenizer(
+                to_predict,
+                padding=True,
+                return_tensors="pt",
+            )
+
+        input_ids_tensor = inputs["input_ids"]
+        attention_mask_tensor = inputs["attention_mask"]
+
+        # Create a TensorDataset
+        dataset = TensorDataset(input_ids_tensor, attention_mask_tensor)
+
+        # Define batch size
+
+        # Create the dataloader
+        predict_dataloader = DataLoader(
+            dataset, batch_size=self.args.eval_batch_size, shuffle=False
+        )
+
+        # Put model in evaluation mode
+        self.model.eval()
+
+        # Predict
+        responses = []
+        outputs = []
+        for batch in tqdm(
+            predict_dataloader, desc="Generating outputs", disable=self.args.silent
+        ):
+            batch = tuple(t.to(self.device) for t in batch)
+            input_ids, attention_mask = batch
+
+            generation_output = self.model.generate(
+                input_ids,
+                attention_mask=attention_mask,
+                return_dict_in_generate=True,
+                output_scores=True,
+                **generation_args.get_dict(),
+                **kwargs,
+            )
+
+            # response_tests = self.tokenizer.batch_decode(generation_output.sequences[:, input_ids.shape[1]:], skip_special_tokens=True)
+
+            for i, s in enumerate(generation_output.sequences):
+                output = self.tokenizer.decode(
+                    s[input_ids[i].shape[0] :], skip_special_tokens=True
+                )
+                responses.append(output)
+
+            # responses.extend(response_tests)
+            outputs.extend(generation_output)
+
+        return responses, generation_output
+
     def load_and_cache_examples(
         self, file_path, evaluate=False, no_cache=False, verbose=True, silent=False
     ):
@@ -1373,7 +1703,9 @@ class LanguageModelingModel:
         mode = "dev" if evaluate else "train"
 
         if self.args.use_hf_datasets:
-            dataset = load_hf_dataset(file_path, tokenizer, self.args)
+            dataset = load_hf_dataset(
+                file_path, tokenizer, self.args, retrieval_model=self.retrieval_model
+            )
             return dataset
         elif args.dataset_class:
             CustomDataset = args.dataset_class
@@ -1613,7 +1945,8 @@ class LanguageModelingModel:
         return 0
 
     def _move_model_to_device(self):
-        self.model.to(self.device)
+        if not self.args.qlora and not self.args.nf4:
+            self.model.to(self.device)
 
     def _create_training_progress_scores(self, **kwargs):
         extra_metrics = {key: [] for key in kwargs}
@@ -1686,6 +2019,68 @@ class LanguageModelingModel:
         even when training on multiple machines.
         """
         return self.args.local_rank == -1 or torch.distributed.get_rank() == 0
+
+    def get_optimizer_parameters(self, model, args):
+        no_decay = ["bias", "LayerNorm.weight"]
+
+        optimizer_grouped_parameters = []
+        custom_parameter_names = set()
+        for group in self.args.custom_parameter_groups:
+            params = group.pop("params")
+            custom_parameter_names.update(params)
+            param_group = {**group}
+            param_group["params"] = [
+                p for n, p in model.named_parameters() if n in params
+            ]
+            optimizer_grouped_parameters.append(param_group)
+
+        for group in self.args.custom_layer_parameters:
+            layer_number = group.pop("layer")
+            layer = f"layer.{layer_number}."
+            group_d = {**group}
+            group_nd = {**group}
+            group_nd["weight_decay"] = 0.0
+            params_d = []
+            params_nd = []
+            for n, p in model.named_parameters():
+                if n not in custom_parameter_names and layer in n:
+                    if any(nd in n for nd in no_decay):
+                        params_nd.append(p)
+                    else:
+                        params_d.append(p)
+                    custom_parameter_names.add(n)
+            group_d["params"] = params_d
+            group_nd["params"] = params_nd
+
+            optimizer_grouped_parameters.append(group_d)
+            optimizer_grouped_parameters.append(group_nd)
+
+        if not self.args.train_custom_parameters_only:
+            optimizer_grouped_parameters.extend(
+                [
+                    {
+                        "params": [
+                            p
+                            for n, p in model.named_parameters()
+                            if n not in custom_parameter_names
+                            and not any(nd in n for nd in no_decay)
+                        ],
+                        "weight_decay": args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in model.named_parameters()
+                            if n not in custom_parameter_names
+                            and any(nd in n for nd in no_decay)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                ]
+            )
+
+
+        return optimizer_grouped_parameters
 
     def get_named_parameters(self):
         return [n for n, p in self.model.named_parameters()]
