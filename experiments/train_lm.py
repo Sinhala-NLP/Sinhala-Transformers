@@ -52,6 +52,7 @@ model_args.dataset_type = "simple"
 model_args.train_batch_size = 32
 model_args.eval_batch_size = 64
 model_args.learning_rate = 1e-4
+model_args.max_seq_length = 512
 model_args.evaluate_during_training = True
 model_args.evaluate_during_training_steps = 30000
 model_args.save_eval_checkpoints = True
