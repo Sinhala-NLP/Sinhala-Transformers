@@ -26,6 +26,7 @@ shuffle(lines)
 train_lines = lines[:int(len(lines)*.8)]
 test_lines = lines[int(len(lines)*.8):len(lines)]
 
+lines = lines[0:5000]
 lines = None
 del lines
 
