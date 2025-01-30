@@ -575,10 +575,6 @@ class LanguageModelingModel:
             **kwargs,
         )
 
-        if args.save_recent_only:
-            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-            for del_path in del_paths:
-                shutil.rmtree(del_path)
 
         self.save_model(output_dir, model=self.model)
         if self.args.model_type == "electra":
@@ -1028,11 +1024,6 @@ class LanguageModelingModel:
 
                     if args.save_steps > 0 and global_step % args.save_steps == 0:
 
-                        if args.save_recent_only:
-                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                            for del_path in del_paths:
-                                shutil.rmtree(del_path)
-
                         # Save model checkpoint
                         output_dir_current = os.path.join(
                             output_dir, "checkpoint-{}".format(global_step)
@@ -1068,11 +1059,6 @@ class LanguageModelingModel:
                         )
 
                         if args.save_eval_checkpoints:
-                            if args.save_recent_only:
-                                del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                                for del_path in del_paths:
-                                    shutil.rmtree(del_path)
-
 
                             self.save_model(
                                 output_dir_current,
@@ -1100,11 +1086,6 @@ class LanguageModelingModel:
                         if not best_eval_metric:
                             best_eval_metric = results[args.early_stopping_metric]
 
-                            if args.save_recent_only:
-                                del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                                for del_path in del_paths:
-                                    shutil.rmtree(del_path)
-
                             self.save_model(
                                 args.best_model_dir,
                                 optimizer,
@@ -1119,10 +1100,7 @@ class LanguageModelingModel:
                             ):
                                 best_eval_metric = results[args.early_stopping_metric]
 
-                                if args.save_recent_only:
-                                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                                    for del_path in del_paths:
-                                        shutil.rmtree(del_path)
+
 
                                 self.save_model(
                                     args.best_model_dir,
@@ -1168,11 +1146,6 @@ class LanguageModelingModel:
                                 > args.early_stopping_delta
                             ):
                                 best_eval_metric = results[args.early_stopping_metric]
-
-                                if args.save_recent_only:
-                                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                                    for del_path in del_paths:
-                                        shutil.rmtree(del_path)
 
                                 self.save_model(
                                     args.best_model_dir,
@@ -1232,12 +1205,6 @@ class LanguageModelingModel:
                 os.makedirs(output_dir_current, exist_ok=True)
 
             if args.save_model_every_epoch:
-
-                if args.save_recent_only:
-                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                    for del_path in del_paths:
-                        shutil.rmtree(del_path)
-
                 self.save_model(output_dir_current, optimizer, scheduler, model=model)
 
             if args.evaluate_during_training and args.evaluate_each_epoch:
@@ -1248,10 +1215,6 @@ class LanguageModelingModel:
                     **kwargs,
                 )
 
-                if args.save_recent_only:
-                    del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                    for del_path in del_paths:
-                        shutil.rmtree(del_path)
 
                 self.save_model(
                     output_dir_current, optimizer, scheduler, results=results
@@ -1273,10 +1236,6 @@ class LanguageModelingModel:
                 if not best_eval_metric:
                     best_eval_metric = results[args.early_stopping_metric]
 
-                    if args.save_recent_only:
-                        del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                        for del_path in del_paths:
-                            shutil.rmtree(del_path)
 
                     self.save_model(
                         args.best_model_dir,
@@ -1291,11 +1250,6 @@ class LanguageModelingModel:
                         < args.early_stopping_delta
                     ):
                         best_eval_metric = results[args.early_stopping_metric]
-
-                        if args.save_recent_only:
-                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                            for del_path in del_paths:
-                                shutil.rmtree(del_path)
 
                         self.save_model(
                             args.best_model_dir,
@@ -1341,11 +1295,6 @@ class LanguageModelingModel:
                         > args.early_stopping_delta
                     ):
                         best_eval_metric = results[args.early_stopping_metric]
-
-                        if args.save_recent_only:
-                            del_paths = glob.glob(os.path.join(output_dir, 'checkpoint-*'))
-                            for del_path in del_paths:
-                                shutil.rmtree(del_path)
 
                         self.save_model(
                             args.best_model_dir,
