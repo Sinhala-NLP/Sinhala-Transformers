@@ -74,7 +74,7 @@ model = LanguageModelingModel(
 )
 
 # Train the model
-model.train_model(train_file, eval_file=test_file)
+model.train_model(train_file, eval_file=test_file, args=model_args)
 
 # Evaluate the model
 result = model.eval_model(test_file)
