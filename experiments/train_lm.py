@@ -22,7 +22,7 @@ VOCAB_SIZE = int(arguments.vocab_size)
 dataset = Dataset.to_pandas(load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train'))
 lines = dataset['text'].tolist()
 
-lines = lines[0:5000]
+lines = lines[:5000]
 shuffle(lines)
 train_lines = lines[:int(len(lines)*.8)]
 test_lines = lines[int(len(lines)*.8):len(lines)]
