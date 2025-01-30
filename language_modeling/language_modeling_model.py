@@ -1504,7 +1504,7 @@ class LanguageModelingModel:
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
 
-            if "token_type_ids" in batch:
+            if isinstance(batch, dict) and "token_type_ids" in batch:
                 inputs_dict = {
                     "input_ids": inputs,
                     "attention_mask": batch["attention_mask"].to(self.device)
@@ -1518,7 +1518,7 @@ class LanguageModelingModel:
                 inputs_dict = {
                     "input_ids": inputs,
                     "attention_mask": batch["attention_mask"].to(self.device)
-                    if self.args.use_hf_datasets
+                    if isinstance(batch, dict) and self.args.use_hf_datasets
                     else None,
                 }
 
