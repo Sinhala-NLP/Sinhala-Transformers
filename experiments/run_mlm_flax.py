@@ -590,7 +590,10 @@ def main():
         # We use `return_special_tokens_mask=True` because DataCollatorForLanguageModeling (see below) is more
         # efficient when it receives the `special_tokens_mask`.
         def tokenize_function(examples):
-            return tokenizer(examples[text_column_name], return_special_tokens_mask=True)
+            # Ensure all values are strings and remove None values
+            texts = [str(text) for text in examples[text_column_name] if text is not None]
+
+            return tokenizer(texts, return_special_tokens_mask=True)
 
         tokenized_datasets = datasets.map(
             tokenize_function,
