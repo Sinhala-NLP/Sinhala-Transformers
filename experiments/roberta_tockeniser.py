@@ -2,7 +2,7 @@ from datasets import load_dataset
 from tokenizers import Tokenizer, normalizers, trainers, models, pre_tokenizers
 
 # Load dataset
-dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train')
+dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train[:10000]')
 
 # Instantiate a BPE tokenizer
 tokenizer = Tokenizer(models.BPE())
