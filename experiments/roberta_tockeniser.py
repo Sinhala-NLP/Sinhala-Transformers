@@ -16,7 +16,12 @@ tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
 # Define a function to yield text batches
 def batch_iterator(batch_size=1000):
     for i in range(0, len(dataset), batch_size):
-        yield dataset[i: i + batch_size]["text"]
+        batch_texts = dataset[i: i + batch_size]["text"]
+        # Filter out None values
+        batch_texts = [text for text in batch_texts if text is not None]
+        if batch_texts:  # Only yield non-empty batches
+            yield batch_texts
+
 
 # Define a trainer for WordPiece
 trainer = trainers.WordPieceTrainer(
