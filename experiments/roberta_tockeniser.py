@@ -1,6 +1,6 @@
 from datasets import load_dataset
 from tokenizers import Tokenizer, normalizers, trainers, models, pre_tokenizers
-
+from transformers import RobertaConfig
 
 dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train')
 
@@ -12,6 +12,11 @@ tokenizer.normalizer = normalizers.NFKC()
 
 # Use a whitespace pre-tokenizer to avoid byte-level issues
 tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+
+# Count non-null entries
+num_valid_texts = sum(1 for text in dataset["text"] if text is not None)
+print(f"Number of valid text entries: {num_valid_texts}")
+
 
 # Define a function to yield text batches
 def batch_iterator(batch_size=1000):
@@ -35,3 +40,6 @@ tokenizer.train_from_iterator(batch_iterator(), trainer)
 
 # Save tokenizer
 tokenizer.save("sinhala-roberta-base/tokenizer.json")
+
+config = RobertaConfig.from_pretrained("FacebookAI/roberta-large", vocab_size=64000)
+config.save_pretrained("sinhala-roberta-base")
