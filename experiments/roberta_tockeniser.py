@@ -25,7 +25,7 @@ def batch_iterator(batch_size=1000):
 
 # Define a trainer for WordPiece
 trainer = trainers.WordPieceTrainer(
-    vocab_size=32000,
+    vocab_size=64000,
     min_frequency=2,
     special_tokens=["<s>", "<pad>", "</s>", "<unk>", "<mask>"]
 )
