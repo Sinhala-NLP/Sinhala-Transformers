@@ -1,7 +1,7 @@
 from datasets import load_dataset
 from tokenizers import Tokenizer, normalizers, trainers, models, pre_tokenizers
 
-# Load dataset (first 10,000 samples)
+
 dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train')
 
 # Initialize a WordPiece tokenizer
