@@ -1,12 +1,12 @@
 from transformers import AutoModelForMaskedLM, AutoTokenizer, pipeline
 
-model_path = "/mnt/data/ranasint/Projects/Sinhala-Transformers/sinhala-roberta-base/"
+model_path = "NLPC-UOM/SinBERT-small"
 
 # Load tokenizer (it will detect whether to use BertTokenizer or RobertaTokenizer)
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 # Load model (automatically detects architecture)
-model = AutoModelForMaskedLM.from_pretrained(model_path, from_flax=True)
+model = AutoModelForMaskedLM.from_pretrained(model_path)
 
 # Create the fill-mask pipeline
 fill_mask = pipeline("fill-mask", model=model, tokenizer=tokenizer)
