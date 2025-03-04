@@ -1,6 +1,6 @@
 from datasets import load_dataset
 from tokenizers import Tokenizer, normalizers, trainers, models, pre_tokenizers
-from transformers import RobertaConfig
+from transformers import BertConfig
 
 dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train')
 
@@ -32,5 +32,5 @@ tokenizer.train_from_iterator(batch_iterator(), trainer)
 
 tokenizer.save("sinhala-bert-base/tokenizer.json")
 
-config = RobertaConfig.from_pretrained("google-bert/bert-base-cased", vocab_size=64000)
+config = BertConfig.from_pretrained("google-bert/bert-base-cased", vocab_size=64000)
 config.save_pretrained("sinhala-bert-base")
