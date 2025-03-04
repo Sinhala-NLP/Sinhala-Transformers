@@ -12,7 +12,7 @@ model = AutoModelForMaskedLM.from_pretrained(model_path, from_flax=True)
 fill_mask = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
 # Test sentence
-sentence = "<mask> තැබීම සිදුකළ දිනයේ සිට මේ වන තෙක් ඇය සැඟව සිටින ස්ථානය සම්බන්ධයෙන් නිසි තොරතුරක් නොමැති බැවින් සැකකාරිය අත්අඩංගුවට ගැනීම සඳහා සාර්ථක තොරතුරක් ලබාදෙන අයෙකුට රුපියල් ලක්ෂ 12 ක මුදල් ත්‍යාගයක් පිරිනැමීමට පොලිස් මූලස්ථානය තීරණය කර ඇත"
+sentence = "එම ඝාතනය සම්බන්ධයෙන් කොළඹ අපරාධ කොට්ඨාසය විසින් <mask> සිදුකරමින් පවතී."
 
 # Get predictions
 predictions = fill_mask(sentence)
