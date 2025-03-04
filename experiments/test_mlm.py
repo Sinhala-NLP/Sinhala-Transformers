@@ -12,7 +12,7 @@ model = AutoModelForMaskedLM.from_pretrained(model_path, from_flax=True)
 fill_mask = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
 # Test sentence
-sentence = "මෙම නියෝජිතයින් රජය අපහසුතාවට පත් කිරීමේ අරමුණින් ඉන්ධන බෙදා හැරීමේ කටයුතු අඩපණ කිරීමේ <mask> නියැලෙස බව සඳහන් කරමින් අපරාධ පරීක්ෂණ දෙපාර්තමේන්තුවට පැමිණිල්ලක් ලැබී ඇත."
+sentence = "ශ්‍රී දළදා මාළිගාව යනු බුදුරජාණන් වහන්සේගේ <mask> දන්තධාතූන් වහන්සේ වර්තමානයේ තැන්පත් කර ඇති මාළිගාවයි. "
 
 # Get predictions
 predictions = fill_mask(sentence)
