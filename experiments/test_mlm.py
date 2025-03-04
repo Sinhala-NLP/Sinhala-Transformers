@@ -12,7 +12,7 @@ model = AutoModelForMaskedLM.from_pretrained(model_path)
 fill_mask = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
 # Test sentence
-sentence = "එම ඝාතනය සම්බන්ධයෙන් කොළඹ අපරාධ කොට්ඨාසය විසින් <mask> සිදුකරමින් පවතී."
+sentence = "මෙම නියෝජිතයින් රජය අපහසුතාවට පත් කිරීමේ අරමුණින් ඉන්ධන බෙදා හැරීමේ කටයුතු අඩපණ කිරීමේ <mask> නියැලෙස බව සඳහන් කරමින් අපරාධ පරීක්ෂණ දෙපාර්තමේන්තුවට පැමිණිල්ලක් ලැබී ඇත."
 
 # Get predictions
 predictions = fill_mask(sentence)
