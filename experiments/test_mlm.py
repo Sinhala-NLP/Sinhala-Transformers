@@ -12,7 +12,7 @@ model = AutoModelForMaskedLM.from_pretrained(model_path, from_flax=True)
 fill_mask = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
 # Test sentence
-sentence = "සංවිධානාත්මක අපරාධකරුවෙකු වන සංජීව කුමාර සමරරත්න නොහොත් ගණේමුල්ල සංජීව වෙඩි තබා ඝාතනය කිරීමේ අපරාධයේ සැඟව සිටින ප්‍රධාන සැකකාරිය සම්බන්ධයෙන් <mask> තොරතුරක් ලබා දෙන අයෙකුට රුපියල් ලක්ෂ 12ක මුදල් ත්‍යාගයක් ලබාදෙන බව පොලිස් මූලස්ථානය පවසයි."
+sentence = "නිවේදනයක් නිකුත් කරමින් <mask> මාධ්‍ය කෙට්ඨාසය මේ බව දැනුම් දී තිබේ."
 
 # Get predictions
 predictions = fill_mask(sentence)
