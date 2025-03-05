@@ -23,7 +23,7 @@ def batch_iterator(batch_size=1000):
 
 
 trainer = trainers.WordPieceTrainer(
-    vocab_size=64000,
+    vocab_size=96000,
     min_frequency=2,
     special_tokens=["<s>", "<pad>", "</s>", "<unk>", "<mask>"]
 )
@@ -32,5 +32,5 @@ tokenizer.train_from_iterator(batch_iterator(), trainer)
 
 tokenizer.save("sinhala-bert-base/tokenizer.json")
 
-config = BertConfig.from_pretrained("google-bert/bert-base-cased", vocab_size=64000)
+config = BertConfig.from_pretrained("google-bert/bert-base-cased", vocab_size=96000)
 config.save_pretrained("sinhala-bert-base")
