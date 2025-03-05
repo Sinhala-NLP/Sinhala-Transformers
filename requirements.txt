@@ -1,3 +1,5 @@
 datasets
 scipy
 numpy
+flax
+tokenizers
