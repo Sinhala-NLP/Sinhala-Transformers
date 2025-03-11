@@ -31,4 +31,4 @@ tokenizer.train_from_iterator(batch_iterator(), vocab_size=64000, min_frequency=
 tokenizer.save("sinhala-roberta-base-new/tokenizer.json")
 
 config = RobertaConfig.from_pretrained("FacebookAI/roberta-base", vocab_size=64000)
-config.save_pretrained("sinhala-roberta-base-new")
+config.save_pretrained("sinhala-roberta-base")
