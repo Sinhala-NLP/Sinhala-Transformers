@@ -1,6 +1,10 @@
 from datasets import load_dataset
 from tokenizers import trainers, Tokenizer, normalizers, ByteLevelBPETokenizer
 from transformers import RobertaConfig
+import os
+
+os.environ['HF_HOME'] = '/mnt/data/ranasint/'
+
 # load dataset
 dataset = load_dataset('sinhala-nlp/sinhala-7m-corpus', split='train')
 
